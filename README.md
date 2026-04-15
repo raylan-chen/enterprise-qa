@@ -186,10 +186,6 @@ claude
 综合多源结果 → 自然语言回答 + 来源标注
 ```
 
-### 权限配置
-
-`.claude/settings.local.json` 中已预配置 Bash 工具调用白名单，Claude Code 可以直接执行 CLI 命令查询数据。如果执行新的查询命令时被拦截，选择 **Allow** 并勾选 "Always allow" 即可。
-
 ### 自定义配置
 
 如需修改数据路径或其他设置，编辑 `config.yaml`：
@@ -270,7 +266,7 @@ python -m pytest tests/test_integration.py -v
 | main.py | 89% |
 | **总计** | **96%** |
 
-共 125 个测试用例，覆盖考试要求的 T01-T12 全部测试场景。
+共 125 个测试用例。
 ```
 
 ## 配置
