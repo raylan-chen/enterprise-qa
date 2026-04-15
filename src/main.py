@@ -2,7 +2,7 @@
 CLI 统一入口
 
 提供子命令: schema, db-query, kb-search, db-employee, db-projects, db-attendance, db-performance
-输出 JSON 格式，供 Claude Skill 调用。
+输出 JSON 格式，供 Claude Code 自定义命令调用。
 """
 
 from __future__ import annotations

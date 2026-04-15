@@ -1,1 +1,1 @@
-# Enterprise QA Skill - Tests
+# Enterprise QA Custom Command - Tests

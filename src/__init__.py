@@ -1,1 +1,1 @@
-# Enterprise QA Skill - Source Package
+# Enterprise QA Custom Command - Source Package

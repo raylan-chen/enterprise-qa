@@ -1,4 +1,4 @@
-# Skill 配置文件
+# Claude Code 自定义命令配置文件
 
 database:
   type: sqlite
