@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python src/main.py --base-dir ./data db-employee --name \"李四\")",
+      "Bash(python src/main.py --base-dir ./data db-employee --employee-id \"EMP-000\")",
+      "Bash(python src/main.py --base-dir ./data kb-search --query \"年假怎么计算\" --top-k 3)",
+      "Bash(python src/main.py --base-dir ./data kb-search --query \"迟到扣钱处罚规则\" --top-k 3)",
+      "Bash(python src/main.py --base-dir ./data db-employee --name \"张三\")",
+      "Bash(python src/main.py --base-dir ./data db-projects --employee-id \"EMP-001\")",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data db-projects --employee-id \"EMP-001\")",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data db-department --department \"研发部\")",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data db-employee --name \"王五\")",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data db-performance --employee-id \"EMP-003\" --year 2025)",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data db-projects --employee-id \"EMP-003\")",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data kb-search --query \"P5晋升P6工作年限绩效项目经验要求\" --top-k 3)",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data db-attendance --employee-id \"EMP-001\" --year 2026 --month 2 --status \"late\")",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data db-employee --employee-id \"EMP-999\")",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data kb-search --query \"最近会议动态组织调整项目进展\" --top-k 5)",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data db-projects --status \"active\")",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data kb-search --query \"3月全员大会业绩产品发布组织调整\" --top-k 3)",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data kb-search --query \"全员大会\" --top-k 3)",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data kb-search --query \"业绩回顾 产品发布 新成立部门\" --top-k 5)",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data kb-search --query \"报销流程标准范围\" --top-k 3)",
+      "Bash(PYTHONIOENCODING=utf-8 python src/main.py --base-dir ./data kb-search --query \"差旅费报销范围流程提交审批\" --top-k 5)",
+      "Bash(python src/main.py --base-dir ./data db-department --department \"产品部\")",
+      "Bash(python src/main.py --base-dir ./data kb-search --query \"差旅费报销标准\" --top-k 3)",
+      "Bash(python src/main.py --base-dir ./data kb-search --query \"差旅标准 报销范围 报销流程 交通住宿\" --top-k 5)",
+      "Bash(python src/main.py --base-dir ./data kb-search --query \"差旅标准 住宿交通 出差\" --top-k 5)",
+      "Bash(python src/main.py --base-dir ./data kb-search --query \"3月全员大会 业绩 产品发布 组织调整\" --top-k 5)",
+      "Bash(python src/main.py --base-dir ./data kb-search --query \"全员大会 Q1 业绩回顾 营收 客户 团队扩张 ReMe\" --top-k 5)",
+      "Bash(python src/main.py --base-dir ./data kb-search --query \"全员大会 产品发布 ReMe 2.0 智能问答 组织调整 人事\" --top-k 5)",
+      "Bash(python src/main.py --base-dir ./data kb-search --query \"全员大会 议程 组织调整 部门 成立 任命\" --top-k 5)",
+      "Bash(python src/main.py --base-dir ./data kb-search --query \"全员大会 议程三 人事调整 晋升 招聘\" --top-k 3)",
+      "Bash(python src/main.py --base-dir ./data db-projects --status \"active\")"
+    ]
+  }
+}

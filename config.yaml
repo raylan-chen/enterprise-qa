@@ -1,0 +1,14 @@
+# Skill 配置文件
+
+database:
+  type: sqlite
+  path: ./data/enterprise.db
+
+knowledge_base:
+  root_path: ./data/knowledge
+  index_type: bm25
+
+timezone: Asia/Shanghai
+
+logging:
+  level: INFO
