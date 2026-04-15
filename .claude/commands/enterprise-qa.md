@@ -8,49 +8,57 @@
 
 ## 可用工具
 
-你可以通过以下 CLI 命令访问数据源。所有命令的工作目录为项目根目录 `enterprise-qa/`，基准目录指向数据目录。
+你可以通过以下 CLI 命令访问数据源。所有命令的工作目录为项目根目录 `enterprise-qa/`。
+默认情况下不要显式传 `--base-dir`，直接使用项目根目录下的 `config.yaml`。
+只有在数据目录不位于默认位置时，才传 `--base-dir <路径>`；如果这样做，配置中的路径也应改成相对于该目录的形式，例如 `./enterprise.db`、`./knowledge`。
 
 ### 数据库查询
 
 ```bash
 # 通用 SQL 查询（参数化，? 占位符）
-python src/main.py --base-dir ./data db-query --sql "SELECT * FROM employees WHERE name = ?" --params '["张三"]'
+python src/main.py db-query --sql "SELECT * FROM employees WHERE name = ?" --params '["张三"]'
 
 # 查询员工信息
-python src/main.py --base-dir ./data db-employee --name "张三"
-python src/main.py --base-dir ./data db-employee --employee-id "EMP-001"
-python src/main.py --base-dir ./data db-employee --department "研发部"
+python src/main.py db-employee --name "张三"
+python src/main.py db-employee --employee-id "EMP-001"
+python src/main.py db-employee --department "研发部"
 
 # 查询员工参与的项目
-python src/main.py --base-dir ./data db-projects --employee-id "EMP-001"
+python src/main.py db-projects --employee-id "EMP-001"
 
 # 按状态查询项目
-python src/main.py --base-dir ./data db-projects --status "active"
+python src/main.py db-projects --status "active"
 
 # 查询考勤
-python src/main.py --base-dir ./data db-attendance --employee-id "EMP-001" --year 2026 --month 2
+python src/main.py db-attendance --employee-id "EMP-001" --year 2026 --month 2
 
 # 查询迟到记录
-python src/main.py --base-dir ./data db-attendance --employee-id "EMP-001" --year 2026 --month 2 --status "late"
+python src/main.py db-attendance --employee-id "EMP-001" --year 2026 --month 2 --status "late"
 
 # 查询绩效
-python src/main.py --base-dir ./data db-performance --employee-id "EMP-001" --year 2025
+python src/main.py db-performance --employee-id "EMP-001" --year 2025
 
 # 查询部门成员
-python src/main.py --base-dir ./data db-department --department "研发部"
+python src/main.py db-department --department "研发部"
 
 # 查看表结构
-python src/main.py --base-dir ./data schema
+python src/main.py schema
 ```
 
 ### 知识库检索
 
 ```bash
 # 搜索知识库
-python src/main.py --base-dir ./data kb-search --query "年假怎么计算" --top-k 3
+python src/main.py kb-search --query "年假怎么计算" --top-k 3
 
 # 列出知识库文档
-python src/main.py --base-dir ./data kb-list
+python src/main.py kb-list
+```
+
+如需切换到外部数据目录，可使用：
+
+```bash
+python src/main.py --base-dir /path/to/data db-employee --name "张三"
 ```
 
 ---

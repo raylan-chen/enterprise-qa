@@ -14,7 +14,6 @@ enterprise-qa/
 │   ├── schema.sql              # 数据库建表语句
 │   ├── seed_data.sql           # 初始数据
 │   ├── init_db.sh              # 数据库初始化脚本（Linux/Mac）
-│   ├── config.yaml.example     # 配置文件模板
 │   ├── enterprise.db           # SQLite 数据库（运行时生成）
 │   └── knowledge/              # 知识库文档
 │       ├── faq.md              # 常见问题
@@ -122,7 +121,10 @@ python src/main.py db-employee --name 张三
 python src/main.py kb-search --query "年假怎么计算"
 ```
 
-> 默认 `--base-dir` 为 `./data`（由 `config.yaml` 配置），无需手动指定。如果需要指定其他数据目录，可以使用 `--base-dir <路径>`。
+> 建议在项目根目录直接运行 CLI，通常无需手动传 `--base-dir`。
+> 默认配置文件 `config.yaml` 已指向 `./data/enterprise.db` 和 `./data/knowledge`。
+> 只有在切换到其他数据目录时才需要显式传入 `--base-dir <路径>`。
+> 如果 `--base-dir` 已经指向数据目录本身，则配置中的路径建议写成相对于该目录的形式，例如 `./enterprise.db`、`./knowledge`。
 
 ---
 
@@ -207,6 +209,16 @@ export ENTERPRISE_QA_DB_PATH=/path/to/enterprise.db
 export ENTERPRISE_QA_KB_PATH=/path/to/knowledge
 ```
 
+如果你希望把整个数据目录迁移到其他位置，推荐两种方式二选一：
+
+```bash
+# 方式 1：保持 config.yaml 中的 ./data/... 写法不变，在项目根目录直接运行
+python src/main.py db-employee --name 张三
+
+# 方式 2：将 --base-dir 指向新的数据目录，同时把配置里的路径改为相对该目录
+python src/main.py --base-dir /path/to/data db-employee --name 张三
+```
+
 ---
 
 ## CLI 命令参考
@@ -267,7 +279,6 @@ python -m pytest tests/test_integration.py -v
 | **总计** | **96%** |
 
 共 125 个测试用例。
-```
 
 ## 配置
 
@@ -275,5 +286,7 @@ python -m pytest tests/test_integration.py -v
 
 | 环境变量 | YAML 字段 | 默认值 | 说明 |
 |---------|-----------|--------|------|
-| `ENTERPRISE_QA_DB_PATH` | `database.path` | `enterprise.db` | 数据库路径 |
-| `ENTERPRISE_QA_KB_PATH` | `knowledge_base.path` | `knowledge/` | 知识库目录 |
+| `ENTERPRISE_QA_DB_PATH` | `database.path` | `./data/enterprise.db` | 数据库路径 |
+| `ENTERPRISE_QA_KB_PATH` | `knowledge_base.root_path` | `./data/knowledge` | 知识库目录 |
+
+`config.yaml` 位于项目根目录时，`database.path` 和 `knowledge_base.root_path` 默认也是相对于项目根目录解析。

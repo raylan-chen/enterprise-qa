@@ -65,6 +65,67 @@ class TestConfig:
         assert cfg.db_path == str(tmp_path / "data" / "test.db")
         assert cfg.kb_path == str(tmp_path / "docs")
 
+    def test_resolve_paths_tolerates_duplicated_base_segment(self, tmp_path):
+        """Passing base_dir=data should still resolve ./data/... correctly."""
+        data_dir = tmp_path / "data"
+        knowledge_dir = data_dir / "knowledge"
+        data_dir.mkdir()
+        knowledge_dir.mkdir()
+        (data_dir / "enterprise.db").write_text("", encoding="utf-8")
+
+        cfg = Config()
+        cfg.database.path = "./data/enterprise.db"
+        cfg.knowledge_base.root_path = "./data/knowledge"
+
+        cfg.resolve_paths(data_dir)
+
+        assert cfg.db_path == str(data_dir / "enterprise.db")
+        assert cfg.kb_path == str(knowledge_dir)
+
+    def test_load_config_with_data_base_dir(self, tmp_path):
+        """CLI-style base_dir=./data should not produce data/data paths."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        (data_dir / "enterprise.db").write_text("", encoding="utf-8")
+        (data_dir / "knowledge").mkdir()
+
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text(
+            yaml.dump(
+                {
+                    "database": {"path": "./data/enterprise.db"},
+                    "knowledge_base": {"root_path": "./data/knowledge"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        cfg = load_config(config_path=str(cfg_file), base_dir=data_dir)
+
+        assert cfg.db_path == str(data_dir / "enterprise.db")
+        assert cfg.kb_path == str(data_dir / "knowledge")
+
+    def test_load_config_with_data_base_dir_before_targets_exist(self, tmp_path):
+        """Path deduplication should not depend on files already existing."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text(
+            yaml.dump(
+                {
+                    "database": {"path": "./data/enterprise.db"},
+                    "knowledge_base": {"root_path": "./data/knowledge"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        cfg = load_config(config_path=str(cfg_file), base_dir=data_dir)
+
+        assert cfg.db_path == str(data_dir / "enterprise.db")
+        assert cfg.kb_path == str(data_dir / "knowledge")
+
     def test_missing_yaml_file(self, tmp_path):
         """Non-existent YAML path should not crash — use defaults."""
         cfg = load_config(

@@ -14,6 +14,19 @@ from typing import Optional
 import yaml
 
 
+def _resolve_relative_path(raw_path: str | Path, base_dir: Path) -> str:
+    """Resolve a path against base_dir, tolerating duplicated leading segments."""
+    raw = Path(raw_path)
+    if raw.is_absolute():
+        return str(raw)
+
+    raw_parts = tuple(part for part in raw.parts if part not in (".", ""))
+    if raw_parts and raw_parts[0] == base_dir.name:
+        return str(base_dir / Path(*raw_parts[1:]))
+
+    return str(base_dir / raw)
+
+
 @dataclass
 class DatabaseConfig:
     type: str = "sqlite"
@@ -46,10 +59,8 @@ class Config:
     def resolve_paths(self, base_dir: str | Path) -> None:
         """Resolve relative paths against a base directory."""
         base = Path(base_dir).resolve()
-        db_raw = Path(self.database.path)
-        kb_raw = Path(self.knowledge_base.root_path)
-        self.db_path = str(db_raw if db_raw.is_absolute() else base / db_raw)
-        self.kb_path = str(kb_raw if kb_raw.is_absolute() else base / kb_raw)
+        self.db_path = _resolve_relative_path(self.database.path, base)
+        self.kb_path = _resolve_relative_path(self.knowledge_base.root_path, base)
 
 
 def _load_yaml(path: str | Path) -> dict:
