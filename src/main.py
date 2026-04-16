@@ -12,6 +12,7 @@ import io
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 # Force UTF-8 stdout on Windows to avoid encoding issues with Chinese characters
 if sys.stdout.encoding != "utf-8":
@@ -23,8 +24,8 @@ if sys.stderr.encoding != "utf-8":
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.config import load_config
-from src.db_engine import DBEngine, format_query_result, strip_sensitive_fields
-from src.kb_engine import KBEngine
+from src.interfaces import SourceRegistry
+from src.db_engine import strip_sensitive_fields
 from src.safety import validate_input, detect_sql_injection, is_readonly_sql
 
 
@@ -33,13 +34,21 @@ def _json_out(data: dict) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2, default=str))
 
 
-def cmd_schema(args: argparse.Namespace, cfg) -> None:
+def _get_registry(ctx: Any) -> SourceRegistry:
+    """Normalize handler context for backward-compatible tests and CLI."""
+    if isinstance(ctx, SourceRegistry):
+        return ctx
+    return SourceRegistry(ctx)
+
+
+def cmd_schema(args: argparse.Namespace, ctx) -> None:
     """Output database schema information."""
-    db = DBEngine(cfg.db_path)
+    registry = _get_registry(ctx)
+    db = registry.get_db_source()
     _json_out({"schema": db.get_schema_info()})
 
 
-def cmd_db_query(args: argparse.Namespace, cfg) -> None:
+def cmd_db_query(args: argparse.Namespace, ctx) -> None:
     """Execute a safe SQL query."""
     sql = args.sql
 
@@ -58,12 +67,13 @@ def cmd_db_query(args: argparse.Namespace, cfg) -> None:
     if args.params:
         params = tuple(json.loads(args.params))
 
-    db = DBEngine(cfg.db_path)
+    registry = _get_registry(ctx)
+    db = registry.get_db_source()
     result = db.execute_query(sql, params)
     _json_out(strip_sensitive_fields(result))
 
 
-def cmd_kb_search(args: argparse.Namespace, cfg) -> None:
+def cmd_kb_search(args: argparse.Namespace, ctx) -> None:
     """Search knowledge base."""
     query = args.query
     ok, msg = validate_input(query)
@@ -71,7 +81,8 @@ def cmd_kb_search(args: argparse.Namespace, cfg) -> None:
         _json_out({"error": msg})
         sys.exit(1)
 
-    kb = KBEngine(cfg.kb_path)
+    registry = _get_registry(ctx)
+    kb = registry.get_kb_source()
     results = kb.search(query, top_k=args.top_k)
     _json_out({
         "query": query,
@@ -89,61 +100,90 @@ def cmd_kb_search(args: argparse.Namespace, cfg) -> None:
     })
 
 
-def cmd_db_employee(args: argparse.Namespace, cfg) -> None:
+def cmd_db_employee(args: argparse.Namespace, ctx) -> None:
     """Query employee information."""
-    db = DBEngine(cfg.db_path)
-    result = db.query_employee(
-        name=args.name,
-        employee_id=args.employee_id,
-        department=args.department,
+    registry = _get_registry(ctx)
+    db = registry.get_db_source()
+    capabilities = registry.get_capability_registry()
+    result = capabilities.execute(
+        "employee.lookup",
+        db,
+        {
+            "name": args.name,
+            "employee_id": args.employee_id,
+            "department": args.department,
+        },
     )
     _json_out(strip_sensitive_fields(result))
 
 
-def cmd_db_projects(args: argparse.Namespace, cfg) -> None:
+def cmd_db_projects(args: argparse.Namespace, ctx) -> None:
     """Query employee projects or projects by status."""
-    db = DBEngine(cfg.db_path)
+    registry = _get_registry(ctx)
+    db = registry.get_db_source()
+    capabilities = registry.get_capability_registry()
     if args.employee_id:
-        result = db.query_employee_projects(args.employee_id)
+        result = capabilities.execute(
+            "employee.projects", db, {"employee_id": args.employee_id}
+        )
     elif args.status:
-        result = db.query_projects_by_status(args.status)
+        result = capabilities.execute(
+            "projects.by_status", db, {"status": args.status}
+        )
     else:
-        result = db.execute_query("SELECT p.*, e.name AS lead_name FROM projects p LEFT JOIN employees e ON p.lead_id = e.employee_id ORDER BY p.project_id")
+        result = capabilities.execute("projects.all", db, {})
     _json_out(strip_sensitive_fields(result))
 
 
-def cmd_db_attendance(args: argparse.Namespace, cfg) -> None:
+def cmd_db_attendance(args: argparse.Namespace, ctx) -> None:
     """Query attendance records."""
-    db = DBEngine(cfg.db_path)
-    result = db.query_attendance(
-        employee_id=args.employee_id,
-        year=args.year,
-        month=args.month,
-        status_filter=args.status,
+    registry = _get_registry(ctx)
+    db = registry.get_db_source()
+    capabilities = registry.get_capability_registry()
+    result = capabilities.execute(
+        "attendance.lookup",
+        db,
+        {
+            "employee_id": args.employee_id,
+            "year": args.year,
+            "month": args.month,
+            "status_filter": args.status,
+        },
     )
     _json_out(strip_sensitive_fields(result))
 
 
-def cmd_db_performance(args: argparse.Namespace, cfg) -> None:
+def cmd_db_performance(args: argparse.Namespace, ctx) -> None:
     """Query performance reviews."""
-    db = DBEngine(cfg.db_path)
-    result = db.query_performance(
-        employee_id=args.employee_id,
-        year=args.year,
+    registry = _get_registry(ctx)
+    db = registry.get_db_source()
+    capabilities = registry.get_capability_registry()
+    result = capabilities.execute(
+        "performance.lookup",
+        db,
+        {
+            "employee_id": args.employee_id,
+            "year": args.year,
+        },
     )
     _json_out(strip_sensitive_fields(result))
 
 
-def cmd_db_department(args: argparse.Namespace, cfg) -> None:
+def cmd_db_department(args: argparse.Namespace, ctx) -> None:
     """Query department members."""
-    db = DBEngine(cfg.db_path)
-    result = db.query_department_members(args.department)
+    registry = _get_registry(ctx)
+    db = registry.get_db_source()
+    capabilities = registry.get_capability_registry()
+    result = capabilities.execute(
+        "department.members", db, {"department": args.department}
+    )
     _json_out(strip_sensitive_fields(result))
 
 
-def cmd_kb_list(args: argparse.Namespace, cfg) -> None:
+def cmd_kb_list(args: argparse.Namespace, ctx) -> None:
     """List knowledge base documents."""
-    kb = KBEngine(cfg.kb_path)
+    registry = _get_registry(ctx)
+    kb = registry.get_kb_source()
     docs = kb.get_document_list()
     _json_out({"documents": docs, "total_sections": kb.section_count})
 
@@ -234,10 +274,11 @@ def main() -> None:
         config_path=args.config,
         base_dir=args.base_dir,
     )
+    registry = SourceRegistry(cfg)
 
     handler = _CMD_MAP.get(args.command)
     if handler:
-        handler(args, cfg)
+        handler(args, registry)
     else:
         parser.print_help()
         sys.exit(1)

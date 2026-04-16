@@ -10,3 +10,4 @@ htmlcov/
 dist/
 build/
 .claude/settings.local.json
+.claude/settings.json

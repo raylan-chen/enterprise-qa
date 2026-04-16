@@ -26,6 +26,9 @@ enterprise-qa/
 │           └── 2026-03-15-tech-sync.md
 ├── src/
 │   ├── __init__.py
+│   ├── interfaces.py           # 数据源抽象与 SourceRegistry
+│   ├── capabilities.py         # 查询能力注册中心
+│   ├── query_definitions.py    # 默认业务查询定义
 │   ├── config.py               # 配置管理（env > yaml > 默认值）
 │   ├── safety.py               # SQL 注入检测 & 输入校验
 │   ├── db_engine.py            # SQLite 只读查询引擎
@@ -33,12 +36,17 @@ enterprise-qa/
 │   └── main.py                 # CLI 入口（9 个子命令）
 ├── tests/
 │   ├── __init__.py
+│   ├── test_registry.py        # SourceRegistry 测试
+│   ├── test_capabilities.py    # 查询能力注册测试
 │   ├── test_config.py          # 配置测试
 │   ├── test_safety.py          # 安全测试
 │   ├── test_db_engine.py       # 数据库测试
 │   ├── test_kb_engine.py       # 知识库测试
 │   ├── test_main.py            # CLI 单元测试
 │   └── test_integration.py     # 集成测试（T01-T12）
+├── docs/
+│   ├── extensibility.md        # 新增表/数据源扩展说明
+│   └── refactor-migration.md   # 第一、二期重构迁移说明
 ├── config.yaml                 # 运行时配置
 ├── requirements.txt
 ├── pytest.ini
@@ -49,30 +57,70 @@ enterprise-qa/
 ## 架构概览
 
 ```
-┌─────────────────────────────────────────┐
-│       Claude Code 自定义斜杠命令        │
-│   (.claude/commands/enterprise-qa.md)   │
-├─────────────────────────────────────────┤
-│              main.py CLI                │
-│   schema │ db-query │ kb-search │ ...   │
-├──────────┬──────────┬───────────────────┤
-│ safety   │ db_engine│   kb_engine       │
-│ (输入校验)│ (SQLite) │ (BM25 + jieba)    │
-├──────────┴──────────┴───────────────────┤
-│              config.py                  │
-│    (YAML + ENV + 默认值 三级配置)        │
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│        Claude Code 自定义斜杠命令 / CLI      │
+│     (.claude/commands/enterprise-qa.md)     │
+├──────────────────────────────────────────────┤
+│                  main.py                     │
+│      子命令解析 + JSON 输出 + 安全校验        │
+├──────────────────────────────────────────────┤
+│               SourceRegistry                 │
+│      结构化数据源 / 知识库数据源统一获取      │
+├───────────────────────┬──────────────────────┤
+│   CapabilityRegistry  │     KnowledgeSource  │
+│   query_definitions   │       kb_engine      │
+│   业务查询注册         │    Markdown + BM25   │
+├───────────────────────┴──────────────────────┤
+│               StructuredSource               │
+│                  db_engine                   │
+│       只读连接 / schema / 原始 SQL 执行       │
+├──────────────────────────────────────────────┤
+│          config.py + safety.py               │
+│   配置加载 / 路径解析 / SQL 安全 / 输入校验    │
+└──────────────────────────────────────────────┘
 ```
 
 ### 模块说明
 
 | 模块 | 职责 |
 |------|------|
+| `src/interfaces.py` | 定义 `StructuredSource`、`KnowledgeSource` 和 `SourceRegistry`，让 CLI 不再直接依赖具体实现 |
+| `src/capabilities.py` | 定义 `QueryCapability` 与 `CapabilityRegistry`，管理命名查询能力 |
+| `src/query_definitions.py` | 提供默认查询能力定义，承载员工、项目、考勤、绩效、部门等业务 SQL |
 | `src/config.py` | 配置管理，支持环境变量 > YAML > 默认值三级优先级 |
 | `src/safety.py` | SQL 注入检测、只读 SQL 校验、输入长度限制 |
-| `src/db_engine.py` | SQLite 只读查询引擎，带参数化查询、敏感字段过滤 |
+| `src/db_engine.py` | SQLite 只读查询引擎，负责连接、schema、原始查询执行；保留兼容 wrapper |
 | `src/kb_engine.py` | BM25 知识库搜索引擎，支持 jieba 中文分词 |
-| `src/main.py` | CLI 入口，提供 9 个子命令供 Claude Code 自定义命令调用 |
+| `src/main.py` | CLI 入口，提供 9 个子命令，通过 registry/capability 调度到具体实现 |
+
+## 第一、二期重构结果
+
+当前已经完成两期重构，目标是先把扩展点从入口层和引擎内部拆出来，同时保持行为不变。
+
+如需查看从旧架构迁移到当前实现的差异、兼容策略和后续改造入口，可参考：[docs/refactor-migration.md](docs/refactor-migration.md)。
+
+### 第一期：入口与具体实现解耦
+
+1. 引入 `StructuredSource` 和 `KnowledgeSource` 抽象。
+2. 引入 `SourceRegistry`，由它负责懒加载当前数据库引擎和知识库引擎。
+3. `main.py` 不再直接 `new DBEngine(...)` 或 `new KBEngine(...)`，而是统一通过 registry 获取 source。
+
+这一阶段完成后，CLI 与具体数据源实现解耦，后续替换同类实现时不需要先改入口层。
+
+### 第二期：业务查询注册化
+
+1. 引入 `QueryCapability` 和 `CapabilityRegistry`。
+2. 把员工、项目、考勤、绩效、部门等查询提取到 `src/query_definitions.py`。
+3. `main.py` 中的业务型 DB 命令通过 capability 执行，而不是直接依赖 `DBEngine` 中的硬编码查询方法。
+4. `DBEngine` 保留原有公开方法，内部改为 capability wrapper，保证向后兼容与测试稳定。
+
+这一阶段完成后，新增一个业务查询的首选路径已经变成：新增查询定义并注册，而不是继续膨胀 `DBEngine`。
+
+### 当前边界
+
+1. 当前仍是单数据库、单知识库配置模型。
+2. 可以较容易地替换默认结构化或知识库实现。
+3. 如果要同时挂载多个数据库或多个知识库实例，下一阶段需要扩展配置模型和 registry。
 
 ---
 
@@ -237,6 +285,57 @@ python src/main.py --base-dir /path/to/data db-employee --name 张三
 | `kb-search --query <查询> [--top-k N]` | 知识库搜索 | `kb-search --query "报销标准"` |
 | `kb-list` | 列出知识库文档 | `kb-list` |
 
+## 扩展指南
+
+如果你要继续扩展当前项目，建议先看完整说明：[docs/extensibility.md](docs/extensibility.md)。
+如果你要向团队解释“为什么这样重构”以及“旧代码怎么迁到新代码”，建议同时阅读：[docs/refactor-migration.md](docs/refactor-migration.md)。
+
+### 新增表/新增数据源决策树
+
+```text
+起点：你准备扩展什么？
+
+├─ A. 只是往当前 SQLite 里新增一张表
+│  ├─ 只是想让数据可存可查
+│  │  ├─ 修改 data/schema.sql
+│  │  ├─ 修改 data/seed_data.sql
+│  │  ├─ 重建或更新 data/enterprise.db
+│  │  └─ 用 db-query 或 schema 验证
+│  └─ 还想把它做成正式查询能力
+│     ├─ 在 src/query_definitions.py 新增 QueryCapability
+│     ├─ 如需 CLI，再修改 src/main.py 的 parser/handler/_CMD_MAP
+│     └─ 补 tests/test_capabilities.py、tests/test_main.py、tests/test_integration.py
+
+├─ B. 想新增一个结构化查询，但不一定新增表
+│  ├─ 优先改 src/query_definitions.py
+│  ├─ 如果只是内部能力，不一定要新增 CLI
+│  └─ 只有涉及通用数据库能力时才改 src/db_engine.py
+
+├─ C. 想替换默认数据库实现
+│  ├─ 新增一个满足 StructuredSource 的实现
+│  ├─ 在 src/interfaces.py 的 SourceRegistry 中接入
+│  └─ 验证现有 query_definitions.py 的 SQL 与目标数据库方言是否兼容
+
+├─ D. 想替换默认知识库实现
+│  ├─ 新增一个满足 KnowledgeSource 的实现
+│  ├─ 在 src/interfaces.py 的 SourceRegistry 中接入
+│  └─ 保持 search 结果结构与当前 main.py 输出兼容
+
+└─ E. 想同时支持多个数据库或多个知识库实例
+   ├─ 这已经超出第一、二期范围
+   ├─ 需要先扩展 src/config.py 为多源配置模型
+   ├─ 再扩展 SourceRegistry 为按名称或能力返回 source
+   └─ 建议作为第三期架构演进单独处理
+```
+
+### 快速判断
+
+1. 改表结构和测试数据：先看 `data/schema.sql`、`data/seed_data.sql`。
+2. 改业务查询能力：先看 `src/query_definitions.py`。
+3. 改默认数据源实现：先看 `src/interfaces.py` 中的 `SourceRegistry`。
+4. 改通用数据库底层能力：再看 `src/db_engine.py`。
+5. 改对外 CLI 命令：最后看 `src/main.py`。
+
 ---
 
 ## 安全机制
@@ -271,14 +370,25 @@ python -m pytest tests/test_integration.py -v
 
 | 模块 | 覆盖率 |
 |------|--------|
+| interfaces.py | 100% |
+| capabilities.py | 100% |
+| query_definitions.py | 100% |
 | config.py | 96% |
 | safety.py | 100% |
 | db_engine.py | 98% |
 | kb_engine.py | 98% |
-| main.py | 89% |
-| **总计** | **96%** |
+| main.py | 96% |
+| **总计** | **98%** |
 
-共 125 个测试用例。
+当前共 142 个测试用例，整体覆盖率已经显著高于 80% 目标。
+
+建议在本地定期执行：
+
+```bash
+python -m pytest tests/ --cov=src --cov-report=term-missing
+```
+
+这样可以直接看到新增功能是否把 `interfaces.py`、`capabilities.py`、`query_definitions.py` 或 `main.py` 的关键分支打漏。
 
 ## 配置
 

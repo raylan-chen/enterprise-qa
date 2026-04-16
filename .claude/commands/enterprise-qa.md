@@ -12,6 +12,12 @@
 默认情况下不要显式传 `--base-dir`，直接使用项目根目录下的 `config.yaml`。
 只有在数据目录不位于默认位置时，才传 `--base-dir <路径>`；如果这样做，配置中的路径也应改成相对于该目录的形式，例如 `./enterprise.db`、`./knowledge`。
 
+当前 CLI 对外命令保持不变，但内部已经完成两期重构：
+
+1. `main.py` 通过 `SourceRegistry` 获取结构化数据源和知识库数据源，不再直接绑定具体实现。
+2. 员工、项目、考勤、绩效、部门等结构化查询已通过 `CapabilityRegistry` 和 `query_definitions.py` 注册化。
+3. 这意味着当前文档中列出的 CLI 仍然是唯一稳定入口；如果未来项目新增表或数据源，应优先参考 `README.md`、`docs/extensibility.md` 与 `docs/refactor-migration.md` 的扩展约定，而不是在回答中假设存在未公开的新命令。
+
 ### 数据库查询
 
 ```bash

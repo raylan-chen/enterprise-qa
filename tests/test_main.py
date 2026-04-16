@@ -6,6 +6,7 @@ import io
 import sys
 import pytest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 # Must set up path before importing src.main
@@ -13,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.config import load_config
 from src.main import (
+    _get_registry,
     build_parser,
     cmd_schema,
     cmd_db_query,
@@ -23,7 +25,9 @@ from src.main import (
     cmd_db_performance,
     cmd_db_department,
     cmd_kb_list,
+    main,
 )
+from src.interfaces import SourceRegistry
 
 BASE_DIR = str(
     Path(__file__).resolve().parent.parent
@@ -201,3 +205,43 @@ class TestBuildParser:
         args = parser.parse_args(["db-query", "--sql", "SELECT 1"])
         assert args.command == "db-query"
         assert args.sql == "SELECT 1"
+
+
+class TestRegistryHelpers:
+    def test_get_registry_passthrough(self, cfg):
+        registry = SourceRegistry(cfg)
+
+        assert _get_registry(registry) is registry
+
+
+class TestMainEntrypoint:
+    def test_main_without_command_exits(self):
+        args = argparse.Namespace(command=None)
+        parser = SimpleNamespace(
+            parse_args=lambda: args,
+            print_help=lambda: None,
+        )
+
+        with patch("src.main.build_parser", return_value=parser):
+            with pytest.raises(SystemExit):
+                main()
+
+    def test_main_dispatches_selected_handler(self, cfg):
+        args = argparse.Namespace(command="schema", config=None, base_dir=BASE_DIR)
+        parser = SimpleNamespace(
+            parse_args=lambda: args,
+            print_help=lambda: None,
+        )
+        calls = []
+
+        def fake_handler(handler_args, registry):
+            calls.append((handler_args, registry))
+
+        with patch("src.main.build_parser", return_value=parser):
+            with patch("src.main.load_config", return_value=cfg):
+                with patch.dict("src.main._CMD_MAP", {"schema": fake_handler}, clear=True):
+                    main()
+
+        assert calls
+        assert calls[0][0] is args
+        assert isinstance(calls[0][1], SourceRegistry)

@@ -12,6 +12,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Optional
 
+from .capabilities import CapabilityRegistry
+from .query_definitions import create_default_capability_registry
 from .safety import is_readonly_sql
 
 # Sensitive columns that must NOT appear in external output.
@@ -36,8 +38,13 @@ def strip_sensitive_fields(result: dict[str, Any]) -> dict[str, Any]:
 class DBEngine:
     """SQLite database query engine with read-only enforcement."""
 
-    def __init__(self, db_path: str):
+    def __init__(
+        self,
+        db_path: str,
+        capabilities: Optional[CapabilityRegistry] = None,
+    ):
         self._db_path = db_path
+        self._capabilities = capabilities
         self._validate_path()
 
     def _validate_path(self) -> None:
@@ -126,6 +133,15 @@ class DBEngine:
 
     # ---- Convenience query methods (pre-built safe queries) ----
 
+    def _execute_capability(
+        self,
+        capability_name: str,
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
+        if self._capabilities is None:
+            self._capabilities = create_default_capability_registry()
+        return self._capabilities.execute(capability_name, self, params)
+
     def query_employee(
         self,
         name: Optional[str] = None,
@@ -133,40 +149,20 @@ class DBEngine:
         department: Optional[str] = None,
     ) -> dict[str, Any]:
         """Query employees with optional filters. Resolves manager_id to manager_name."""
-        conditions: list[str] = ["e.status = 'active'"]
-        params: list[str] = []
-
-        if name:
-            conditions.append("e.name = ?")
-            params.append(name)
-        if employee_id:
-            conditions.append("e.employee_id = ?")
-            params.append(employee_id)
-        if department:
-            conditions.append("e.department = ?")
-            params.append(department)
-
-        where = " AND ".join(conditions)
-        sql = (
-            "SELECT e.employee_id, e.name, e.department, e.level, "
-            "e.hire_date, m.name AS manager_name, e.email, e.status "
-            "FROM employees e "
-            "LEFT JOIN employees m ON e.manager_id = m.employee_id "
-            f"WHERE {where}"
+        return self._execute_capability(
+            "employee.lookup",
+            {
+                "name": name,
+                "employee_id": employee_id,
+                "department": department,
+            },
         )
-        return self.execute_query(sql, tuple(params))
 
     def query_employee_projects(self, employee_id: str) -> dict[str, Any]:
         """Query all projects an employee participates in."""
-        sql = """
-            SELECT p.project_id, p.name AS project_name, p.status AS project_status,
-                   pm.role, pm.join_date
-            FROM project_members pm
-            JOIN projects p ON pm.project_id = p.project_id
-            WHERE pm.employee_id = ?
-            ORDER BY pm.join_date
-        """
-        return self.execute_query(sql, (employee_id,))
+        return self._execute_capability(
+            "employee.projects", {"employee_id": employee_id}
+        )
 
     def query_attendance(
         self,
@@ -176,72 +172,38 @@ class DBEngine:
         status_filter: Optional[str] = None,
     ) -> dict[str, Any]:
         """Query attendance records for a specific employee/month."""
-        month_prefix = f"{year:04d}-{month:02d}-%"
-        if status_filter:
-            sql = """
-                SELECT * FROM attendance
-                WHERE employee_id = ? AND date LIKE ? AND status = ?
-                ORDER BY date
-            """
-            return self.execute_query(sql, (employee_id, month_prefix, status_filter))
-        else:
-            sql = """
-                SELECT * FROM attendance
-                WHERE employee_id = ? AND date LIKE ?
-                ORDER BY date
-            """
-            return self.execute_query(sql, (employee_id, month_prefix))
+        return self._execute_capability(
+            "attendance.lookup",
+            {
+                "employee_id": employee_id,
+                "year": year,
+                "month": month,
+                "status_filter": status_filter,
+            },
+        )
 
     def query_performance(
         self, employee_id: str, year: Optional[int] = None
     ) -> dict[str, Any]:
         """Query performance reviews for an employee."""
-        if year:
-            sql = """
-                SELECT * FROM performance_reviews
-                WHERE employee_id = ? AND year = ?
-                ORDER BY quarter
-            """
-            return self.execute_query(sql, (employee_id, year))
-        else:
-            sql = """
-                SELECT * FROM performance_reviews
-                WHERE employee_id = ?
-                ORDER BY year, quarter
-            """
-            return self.execute_query(sql, (employee_id,))
+        return self._execute_capability(
+            "performance.lookup",
+            {"employee_id": employee_id, "year": year},
+        )
 
     def query_department_members(self, department: str) -> dict[str, Any]:
         """Query all active members of a department."""
-        sql = """
-            SELECT employee_id, name, level, hire_date, email
-            FROM employees
-            WHERE department = ? AND status = 'active'
-            ORDER BY employee_id
-        """
-        return self.execute_query(sql, (department,))
+        return self._execute_capability(
+            "department.members", {"department": department}
+        )
 
     def query_projects_by_status(self, status: str) -> dict[str, Any]:
         """Query projects by status."""
-        sql = """
-            SELECT p.*, e.name AS lead_name
-            FROM projects p
-            LEFT JOIN employees e ON p.lead_id = e.employee_id
-            WHERE p.status = ?
-            ORDER BY p.start_date
-        """
-        return self.execute_query(sql, (status,))
+        return self._execute_capability("projects.by_status", {"status": status})
 
     def find_employee_by_name(self, name: str) -> dict[str, Any]:
         """Find employee by name (fuzzy match). Resolves manager_id to manager_name."""
-        sql = """
-            SELECT e.employee_id, e.name, e.department, e.level,
-                   e.hire_date, m.name AS manager_name, e.email, e.status
-            FROM employees e
-            LEFT JOIN employees m ON e.manager_id = m.employee_id
-            WHERE e.name LIKE ?
-        """
-        return self.execute_query(sql, (f"%{name}%",))
+        return self._execute_capability("employee.find_by_name", {"name": name})
 
     def get_manager_name(self, manager_id: str) -> Optional[str]:
         """Resolve manager_id to manager name."""
